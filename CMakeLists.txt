@@ -19,6 +19,7 @@ set(SOURCES
     ${SRC_DIR}/main.c
     ${SRC_DIR}/my_format.c
     ${SRC_DIR}/fs_utils.c
+    ${SRC_DIR}/fs_persistence.c
     ${SRC_DIR}/my_shell.c
     ${SRC_DIR}/my_ls.c
     ${SRC_DIR}/my_cd.c

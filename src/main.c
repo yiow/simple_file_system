@@ -3,13 +3,22 @@
 #include "my_shell.h"    // 下面我们要写的头文件
 
 #define MAX_CMD_LEN 256
+#define DISK_FILE "virtual_disk.dat"
 
 int main() {
     char cmd_buffer[MAX_CMD_LEN];
 
     // 1. 初始化文件系统 (挂载虚拟磁盘)
     printf("正在初始化文件系统...\n");
-    my_format();
+
+    int fs_loaded = 0;
+
+    if (load_fs(DISK_FILE)) {
+        fs_loaded = 1;
+    } else {
+        printf("\n正在格式化虚拟磁盘...\n");
+        my_format();
+    }
 
     // 2. Shell 主循环
     while (1) {
@@ -29,6 +38,7 @@ int main() {
             break; // 如果返回0，表示需要退出
         }
     }
+    save_fs(DISK_FILE);
 
     printf("再见！\n");
     return 0;
