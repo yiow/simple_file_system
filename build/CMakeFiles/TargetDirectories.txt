@@ -1,3 +1,0 @@
-/home/yeah/os_lab/exp5/build/CMakeFiles/myfs.dir
-/home/yeah/os_lab/exp5/build/CMakeFiles/edit_cache.dir
-/home/yeah/os_lab/exp5/build/CMakeFiles/rebuild_cache.dir
