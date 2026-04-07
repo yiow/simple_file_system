@@ -104,4 +104,8 @@ extern uint32_t current_dir_block;
 // logic_index: 目录项的逻辑序号（0, 1, 2...）
 DirEntry* get_dir_entry_by_index(uint32_t current_block, int logic_index);
 
+// 文件系统持久化函数
+void save_fs(const char* filename);
+int load_fs(const char* filename);
+
 #endif
