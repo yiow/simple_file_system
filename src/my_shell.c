@@ -48,13 +48,31 @@ int execute_command(char *cmd_line) {
         }
     }
 
-    // 4. rmdir 命令
+    // 4. rmdir 命令（支持 -r 选项）
     else if (strcmp(cmd, "rmdir") == 0) {
-        char *arg = strtok(NULL, " \t\n");
-        if (arg != NULL) {
-            my_rmdir(arg);
+        char *arg1 = strtok(NULL, " \t\n");
+        char *arg2 = strtok(NULL, " \t\n");
+
+        if (arg1 != NULL) {
+            // 检查是否有第二个参数
+            if (arg2 != NULL) {
+                // 格式：rmdir -r dirname
+                if (strcmp(arg1, "-r") == 0) {
+                    char full_arg[16];
+                    strcpy(full_arg, arg1);
+                    strcat(full_arg, " ");
+                    strcat(full_arg, arg2);
+                    my_rmdir(full_arg);
+                } else {
+                    printf("错误: 无效的选项 '%s'\n", arg1);
+                    printf("用法: rmdir [-r] <目录名>\n");
+                }
+            } else {
+                // 只有一个参数：rmdir dirname 或 rmdir -rdirname
+                my_rmdir(arg1);
+            }
         } else {
-            printf("用法: rmdir <目录名>\n");
+            printf("用法: rmdir [-r] <目录名>\n");
         }
     }
 
