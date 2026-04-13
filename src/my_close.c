@@ -1,35 +1,50 @@
 #include "fs_def.h"
 
-void my_close(int fd) {
-    if (fd < 0 || fd >= OPEN_FILE_MAX || open_file_table[fd].is_open == 0) {
-        printf("错误：文件描述符无效或文件未打开。\n");
+void my_close(char* filename) {
+    // 1. 解析文件名和扩展名
+    char name[9] = {0};
+    char ext[4] = {0};
+    
+    char *dot = strchr(filename, '.');
+    if (dot != NULL) {
+        int name_len = dot - filename;
+        int ext_len = strlen(dot + 1);
+        
+        if (name_len > 8 || ext_len > 3) {
+            printf("错误: 文件名格式不正确\n");
+            return;
+        }
+        
+        strncpy(name, filename, name_len);
+        strncpy(ext, dot + 1, ext_len);
+    } else {
+        if (strlen(filename) > 8) {
+            printf("错误: 文件名不能超过8个字符\n");
+            return;
+        }
+        strcpy(name, filename);
+    }
+    
+    // 2. 在打开文件表中查找文件
+    int fd = -1;
+    for (int i = 0; i < OPEN_FILE_MAX; i++) {
+        if (open_file_table[i].dir_entry != NULL) {
+            DirEntry *entry = open_file_table[i].dir_entry;
+            if (strncmp(entry->filename, name, 8) == 0 && 
+                strncmp(entry->ext, ext, 3) == 0) {
+                fd = i;
+                break;
+            }
+        }
+    }
+    
+    // 3. 检查文件是否打开
+    if (fd == -1) {
+        printf("错误: 文件 '%s' 未打开\n", filename);
         return;
     }
 
     OpenFileItem *file = &open_file_table[fd];
-
-    // 检查 fcbstate
-    if (file->fcbstate == 1) {
-        printf("正在将 FCB 更新回磁盘...\n");
-        
-        // 1. 定位父目录块
-        uint8_t *dir_block_ptr = GET_BLOCK_ADDR(file->dir_block_no);
-        
-        // 2. 定位目录项
-        DirEntry *dir_entry = (DirEntry *)dir_block_ptr;
-        dir_entry += file->dir_offset;
-
-        // 3. 写回数据
-        memcpy(dir_entry->filename, file->filename, 8);
-        memcpy(dir_entry->ext, file->ext, 3);
-        dir_entry->attribute = file->attribute;
-        dir_entry->first_block = file->first_block;
-        dir_entry->file_size = file->file_size; // 关键：更新长度
-
-        printf("FCB 已更新。\n");
-    } else {
-        printf("文件未修改，无需写回磁盘。\n");
-    }
 
     // 4. 回收表项
     memset(file, 0, sizeof(OpenFileItem));

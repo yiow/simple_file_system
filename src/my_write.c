@@ -1,76 +1,144 @@
 #include "fs_def.h"
 
-int alloc_block(); // 分配一个空闲块
-int do_write(int fd, char *text, int len, char style);
+/**
+ * 分配一个空闲磁盘块
+ * 返回：块号，如果失败返回 -1
+ */
+int alloc_block() {
+    // 从数据区开始查找 (super_block->data_start)
+    for (int i = super_block->data_start; i < super_block->total_blocks; i++) {
+        if (fat_table[i] == FAT_FREE) {
+            // 找到空闲块，标记为文件结尾 (FAT_END)
+            // 简化处理：每次分配都视为新块的结尾，由 do_write 处理链式关系
+            fat_table[i] = FAT_END;
+            super_block->free_blocks--;
+            return i;
+        }
+    }
+    return -1; // 磁盘满
+}
 
-int my_write(int fd) {
-    // 1. 检查 fd 有效性
-    if (fd < 0 || fd >= OPEN_FILE_MAX || open_file_table[fd].is_open == 0) {
-        printf("错误：文件描述符无效或文件未打开。\n");
-        return -1;
+int do_write(int fd, char *text, int len, char style) {
+    OpenFileItem *file = &open_file_table[fd];
+    int bytes_written = 0;
+    
+    while (bytes_written < len) {
+        // 1. 计算当前逻辑块号和块内偏移
+        int current_ptr = file->current_pos;
+        int logic_block = current_ptr / BLOCK_SIZE;
+        int offset = current_ptr % BLOCK_SIZE;
+
+        // 2. 找到当前逻辑块对应的物理块        
+        int phy_block = -1;
+        
+        // 如果是文件的第一个块
+        if (logic_block == 0) {
+            if (file->dir_entry->first_block == 0) {
+                phy_block = alloc_block();
+                if (phy_block == -1) return -1;
+                file->dir_entry->first_block = phy_block; // 更新文件起始块
+            } else {
+                phy_block = file->dir_entry->first_block;
+            }
+        } else {
+            int count = 0;
+            int temp_block = file->dir_entry->first_block;
+            while (temp_block != FAT_END && temp_block != FAT_FREE && temp_block != -1) {
+                if (count == logic_block) {
+                    phy_block = temp_block;
+                    break;
+                }
+                if (fat_table[temp_block] == FAT_END) {
+                    int new_block = alloc_block();
+                    if (new_block == -1) return -1;
+                    fat_table[temp_block] = new_block;
+                    phy_block = new_block;
+                    break;
+                }
+                temp_block = fat_table[temp_block];
+                count++;
+            }
+            
+        }
+
+        // 3. 写入数据
+        uint8_t *block_ptr = GET_BLOCK_ADDR(phy_block);
+        
+        int space_left = BLOCK_SIZE - offset;
+        int to_write = (len - bytes_written) < space_left ? (len - bytes_written) : space_left;
+
+        memcpy(block_ptr + offset, text + bytes_written, to_write);
+
+        // 4. 更新指针
+        file->current_pos += to_write;
+        bytes_written += to_write;
+    }
+
+    return bytes_written;
+}
+
+void my_write(char* filename, char* content) {
+    // 1. 解析文件名和扩展名
+    char name[9] = {0};
+    char ext[4] = {0};
+    
+    char *dot = strchr(filename, '.');
+    if (dot != NULL) {
+        int name_len = dot - filename;
+        int ext_len = strlen(dot + 1);
+        
+        if (name_len > 8 || ext_len > 3) {
+            printf("错误: 文件名格式不正确\n");
+            return;
+        }
+        
+        strncpy(name, filename, name_len);
+        strncpy(ext, dot + 1, ext_len);
+    } else {
+        if (strlen(filename) > 8) {
+            printf("错误: 文件名不能超过8个字符\n");
+            return;
+        }
+        strcpy(name, filename);
+    }
+    
+    // 2. 在打开文件表中查找文件
+    int fd = -1;
+    for (int i = 0; i < OPEN_FILE_MAX; i++) {
+        if (open_file_table[i].dir_entry != NULL) {
+            DirEntry *entry = open_file_table[i].dir_entry;
+            if (strncmp(entry->filename, name, 8) == 0 && 
+                strncmp(entry->ext, ext, 3) == 0) {
+                fd = i;
+                break;
+            }
+        }
+    }
+    
+    // 3. 检查文件是否打开
+    if (fd == -1) {
+        printf("错误: 文件 '%s' 未打开\n", filename);
+        return;
     }
 
     OpenFileItem *file = &open_file_table[fd];
-    char text[1024];
     int total_written = 0;
-    char style;
+    char style = '2'; // 默认覆盖写
 
-    // 2. 交互：选择写模式
-    printf("请选择写入方式:\n");
-    printf("1: 截断写 (清空原内容)\n");
-    printf("2: 覆盖写 (从当前指针位置修改)\n");
-    printf("3: 追加写 (在文件末尾添加)\n");
-    printf("请输入选择 (1/2/3): ");
-    
-    style = getchar();
-    getchar(); // 吸收回车符
+    // 3. 调整状态（默认覆盖写）
 
-    // 3. 根据模式调整状态
-    if (style == '1') {
-        // 截断写：重置长度和指针
-        file->file_size = 0;
-        file->read_write_ptr = 0;
-        printf("已清空文件内容。\n");
-    } else if (style == '3') {
-        // 追加写：指针移至末尾
-        file->read_write_ptr = file->file_size;
+    // 4. 调用底层写函数
+    int ret = do_write(fd, content, strlen(content), style);
+    if (ret < 0) {
+        printf("写入错误：磁盘可能已满。\n");
+        return;
     }
+    total_written += ret;
 
-    // 4. 循环读取输入
-    printf("开始输入内容 (按 Ctrl+D 或 Ctrl+Z 结束):\n");
-    
-    while (1) {
-        int i = 0;
-        char c;
-        while ((c = getchar()) != '\n') {
-            if (c == 0x04 || c == 0x1A) { // Ctrl+D / Ctrl+Z
-                text[i] = '\0';
-                break;
-            }
-            text[i++] = c;
-            if (i >= 1023) break;
-        }
-        text[i] = '\0';
-
-        if (i == 0 || (i == 1 && (text[0] == 0x04 || text[0] == 0x1A))) {
-            break;
-        }
-
-        // 5. 调用底层写函数
-        int ret = do_write(fd, text, strlen(text), style);
-        if (ret < 0) {
-            printf("写入错误：磁盘可能已满。\n");
-            break;
-        }
-        total_written += ret;
-    }
-
-    // 6. 更新文件长度和状态
-    if (file->read_write_ptr > file->file_size) {
-        file->file_size = file->read_write_ptr;
-        file->fcbstate = 1; // 标记 FCB 已修改
+    // 5. 更新文件长度
+    if (file->current_pos > file->dir_entry->file_size) {
+        file->dir_entry->file_size = file->current_pos;
     }
 
     printf("写入完成。共写入 %d 字节。\n", total_written);
-    return total_written;
 }
