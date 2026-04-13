@@ -45,6 +45,7 @@ void my_cd(char *filename)
 
     if (strcmp(filename, "/") == 0) {
         current_dir_block = super_block->root_dir_block;
+        strcpy(current_dir_path, "/");
         return;
     }
 
@@ -58,6 +59,14 @@ void my_cd(char *filename)
             if (!is_valid_entry(entry)) continue;
             if ((entry->attribute & FILE_ATTR_DIR) && dir_name_equals(entry, "..")) {
                 current_dir_block = entry->first_block;
+                
+                // 更新当前目录路径：移除最后一个目录名
+                char *last_slash = strrchr(current_dir_path, '/');
+                if (last_slash != NULL && last_slash != current_dir_path) {
+                    *last_slash = '\0';
+                } else {
+                    strcpy(current_dir_path, "/");
+                }
                 return;
             }
         }
@@ -76,6 +85,13 @@ void my_cd(char *filename)
                 return;
             }
             current_dir_block = entry->first_block;
+            
+            // 更新当前目录路径：添加新目录名
+            if (strcmp(current_dir_path, "/") == 0) {
+                sprintf(current_dir_path, "/%s", filename);
+            } else {
+                sprintf(current_dir_path, "%s/%s", current_dir_path, filename);
+            }
             return;
         }
     }

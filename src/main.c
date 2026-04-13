@@ -5,6 +5,9 @@
 #define MAX_CMD_LEN 256
 #define DISK_FILE "virtual_disk.dat"
 
+// 全局变量定义
+char current_dir_path[256];
+
 int main() {
     char cmd_buffer[MAX_CMD_LEN];
 
@@ -20,10 +23,13 @@ int main() {
         my_format();
     }
 
+    // 初始化当前目录路径
+    strcpy(current_dir_path, "/");
+
     // 2. Shell 主循环
     while (1) {
-        // 打印提示符
-        printf("myfs> ");
+        // 打印提示符，包含当前目录路径
+        printf("myfs:%s> ", current_dir_path);
         
         // 读取用户输入
         if (!fgets(cmd_buffer, MAX_CMD_LEN, stdin)) {

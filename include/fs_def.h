@@ -94,6 +94,9 @@ extern OpenFileItem open_file_table[OPEN_FILE_MAX];
 // 当前工作目录的块号
 extern uint32_t current_dir_block;
 
+// 当前工作目录的路径
+extern char current_dir_path[256];
+
 // ================= 4. 辅助宏定义 =================
 
 // 获取块在内存中的起始地址
